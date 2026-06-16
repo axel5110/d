@@ -1,21 +1,18 @@
-CARBURIO V10 - NOMS + LOGOS + PLAY STORE
+CARBURIO V11 - CORRECTION NOMS DES STATIONS
 
-Ajouts :
-- nom de station associé au bon logo quand l'enseigne est reconnue
-- exemple : TotalEnergies -> logo TotalEnergies
-- exemple : E.Leclerc -> logo E.Leclerc
-- exemple : Intermarché -> logo Intermarché
-- tri toujours du prix le moins cher vers le prix le plus haut
-- bouton "Télécharger dans le Play Store" dans le site
-- carte, distance et curseur conservés
+Correction :
+- ignore le faux nom "placeholder-titre"
+- cherche l'enseigne OSM autour de chaque station trouvée
+- associe le bon logo si l'enseigne est reconnue
+- conserve le tri du prix le moins cher vers le plus cher
+- conserve la carte, la distance, le curseur et le bouton Play Store
 
-Fichiers à mettre dans GitHub :
-- tous les fichiers de ce ZIP
-- ne garde pas les anciens fichiers
+Test :
+/api/carburants?q=Paris&fuel=e10&radius=30
 
-À supprimer avant upload :
-- node_modules
-- _worker.js
-- functions
-- anciens ZIP
-- anciens dossiers
+Dans le JSON, vérifie :
+nameFix
+name
+rawName
+logoKey
+nameSource

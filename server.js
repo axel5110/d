@@ -15,22 +15,22 @@ const FUEL_FIELDS = {
 };
 
 const BRAND_PATTERNS = [
-  { brand: "TotalEnergies", keys: ["totalenergies", "total energies", "total energie", "total énergie", "total access", "total"] },
-  { brand: "E.Leclerc", keys: ["e.leclerc", "e leclerc", "leclerc"] },
-  { brand: "Intermarché", keys: ["intermarché", "intermarche", "inter marché"] },
-  { brand: "Carrefour", keys: ["carrefour"] },
-  { brand: "Auchan", keys: ["auchan"] },
-  { brand: "Super U", keys: ["super u", "hyper u", "u express", "systeme u", "système u"] },
-  { brand: "Avia", keys: ["avia"] },
-  { brand: "Esso", keys: ["esso"] },
-  { brand: "Shell", keys: ["shell"] },
-  { brand: "BP", keys: ["bp"] },
-  { brand: "ENI", keys: ["eni", "agip"] },
-  { brand: "Dyneff", keys: ["dyneff"] },
-  { brand: "Netto", keys: ["netto"] },
-  { brand: "Casino", keys: ["casino"] },
-  { brand: "Cora", keys: ["cora"] },
-  { brand: "Intermarché Contact", keys: ["intermarché contact", "intermarche contact"] }
+  { brand: "TotalEnergies", key: "totalenergies", keys: ["totalenergies", "total energies", "total energie", "total énergie", "total access", "total"] },
+  { brand: "E.Leclerc", key: "leclerc", keys: ["e.leclerc", "e leclerc", "leclerc"] },
+  { brand: "Intermarché", key: "intermarche", keys: ["intermarché", "intermarche", "inter marché"] },
+  { brand: "Carrefour Market", key: "carrefourmarket", keys: ["carrefour market"] },
+  { brand: "Carrefour", key: "carrefour", keys: ["carrefour"] },
+  { brand: "Auchan", key: "auchan", keys: ["auchan"] },
+  { brand: "Super U", key: "superu", keys: ["super u", "hyper u", "u express", "systeme u", "système u", "station u"] },
+  { brand: "Avia", key: "avia", keys: ["avia"] },
+  { brand: "Esso", key: "esso", keys: ["esso"] },
+  { brand: "Shell", key: "shell", keys: ["shell"] },
+  { brand: "BP", key: "bp", keys: ["bp"] },
+  { brand: "ENI", key: "autre", keys: ["eni", "agip"] },
+  { brand: "Dyneff", key: "autre", keys: ["dyneff"] },
+  { brand: "Netto", key: "autre", keys: ["netto"] },
+  { brand: "Casino", key: "autre", keys: ["casino"] },
+  { brand: "Cora", key: "autre", keys: ["cora"] }
 ];
 
 const PARIS_CENTER = { lat: 48.8566, lon: 2.3522 };
@@ -62,59 +62,54 @@ function json(data, status = 200) {
   });
 }
 
-function detectBrand(text) {
+function badStationName(name) {
+  const n = normalize(name);
+  return !n ||
+    n === "placeholdertitre" ||
+    n === "placeholder-titre" ||
+    n.includes("placeholder") ||
+    n.includes("prix carburants") ||
+    n.includes("prix des carburants") ||
+    n === "stationservice" ||
+    n === "station service";
+}
+
+function detectBrandInfo(text) {
   const t = normalize(text);
   for (const rule of BRAND_PATTERNS) {
-    if (rule.keys.some(k => t.includes(normalize(k)))) return rule.brand;
+    if (rule.keys.some(k => t.includes(normalize(k)))) {
+      return { brand: rule.brand, logoKey: rule.key };
+    }
   }
-  return "";
+  return { brand: "", logoKey: "autre" };
 }
-
 
 function logoKeyFromName(name) {
-  const t = normalize(name);
-  if (t.includes("total")) return "totalenergies";
-  if (t.includes("e.leclerc") || t.includes("e leclerc") || t.includes("leclerc")) return "leclerc";
-  if (t.includes("intermarche") || t.includes("intermarché")) return "intermarche";
-  if (t.includes("carrefour market")) return "carrefourmarket";
-  if (t.includes("carrefour")) return "carrefour";
-  if (t.includes("auchan")) return "auchan";
-  if (t.includes("super u") || t.includes("hyper u") || t.includes("u express") || t.includes("systeme u") || t.includes("système u")) return "superu";
-  if (t.includes("avia")) return "avia";
-  if (t.includes("esso")) return "esso";
-  if (t.includes("shell")) return "shell";
-  if (t.includes("bp")) return "bp";
-  return "autre";
+  return detectBrandInfo(name).logoKey || "autre";
 }
 
+function cleanStationNameWithLogo(name, fallback = "") {
+  const source = badStationName(name) ? fallback : name;
+  const info = detectBrandInfo(source);
 
-function brandLabelFromLogoKey(key) {
-  const labels = {
-    totalenergies: "TotalEnergies",
-    leclerc: "E.Leclerc",
-    intermarche: "Intermarché",
-    carrefour: "Carrefour",
-    carrefourmarket: "Carrefour Market",
-    auchan: "Auchan",
-    superu: "Super U",
-    avia: "Avia",
-    esso: "Esso",
-    shell: "Shell",
-    bp: "BP",
-    autre: ""
-  };
-  return labels[key] || "";
-}
+  if (info.brand) {
+    return {
+      name: info.brand,
+      rawName: source,
+      logoKey: info.logoKey,
+      brandName: info.brand,
+      nameSource: "Enseigne reconnue"
+    };
+  }
 
-function cleanStationNameWithLogo(name) {
-  const key = logoKeyFromName(name);
-  const label = brandLabelFromLogoKey(key);
-  if (label) return { name: label, logoKey: key, brandName: label };
+  const safe = badStationName(source) ? "" : clean(source);
 
   return {
-    name: name || "Station-service",
-    logoKey: key || "autre",
-    brandName: ""
+    name: safe || fallback || "Station-service",
+    rawName: safe || fallback || "",
+    logoKey: "autre",
+    brandName: "",
+    nameSource: safe ? "Nom station" : "Nom déduit"
   };
 }
 
@@ -141,18 +136,14 @@ function extractOfficialName(html) {
   for (const pattern of patterns) {
     const m = html.match(pattern);
     if (m && m[1]) {
-      const raw = stripHtml(m[1]);
-      const brand = detectBrand(raw);
-      if (brand) return brand;
-
-      const name = raw
+      const raw = stripHtml(m[1])
         .replace(/Prix des carburants/gi, "")
         .replace(/prix-carburants\.gouv\.fr/gi, "")
         .replace(/Station-service/gi, "")
         .replace(/^[-|–]+|[-|–]+$/g, "")
         .trim();
 
-      if (name.length >= 3 && !normalize(name).includes("prix carburants")) return name;
+      if (!badStationName(raw) && raw.length >= 3) return raw;
     }
   }
 
@@ -312,63 +303,76 @@ async function fetchFuelRowsAround(center, radiusKm) {
   return data.results || [];
 }
 
-async function fetchOsmStations(center, radiusKm) {
-  const radiusMeters = Math.min(Math.round(radiusKm * 1000), 50000);
+async function fetchOsmNameForStation(lat, lon) {
+  if (lat === null || lon === null) return "";
 
   try {
     const query = `
-      [out:json][timeout:10];
+      [out:json][timeout:8];
       (
-        node["amenity"="fuel"](around:${radiusMeters},${center.lat},${center.lon});
-        way["amenity"="fuel"](around:${radiusMeters},${center.lat},${center.lon});
-        relation["amenity"="fuel"](around:${radiusMeters},${center.lat},${center.lon});
+        node["amenity"="fuel"](around:900,${lat},${lon});
+        way["amenity"="fuel"](around:900,${lat},${lon});
+        relation["amenity"="fuel"](around:900,${lat},${lon});
       );
-      out center tags 150;
+      out center tags 20;
     `;
+
+    const body = "data=" + encodeURIComponent(query);
 
     const r = await fetch(OVERPASS_API, {
       method: "POST",
-      headers: { "Content-Type": "text/plain", "User-Agent": "Carburio/1.0 (+https://carburio.com)" },
-      body: query
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "User-Agent": "Carburio/1.0 (+https://carburio.com)"
+      },
+      body
     });
 
-    if (!r.ok) return [];
+    if (!r.ok) return "";
+
     const data = await r.json();
+    const elements = data.elements || [];
+    let best = null;
 
-    return (data.elements || []).map(el => {
-      const lat = el.lat ?? el.center?.lat;
-      const lon = el.lon ?? el.center?.lon;
+    for (const el of elements) {
+      const elLat = el.lat ?? el.center?.lat;
+      const elLon = el.lon ?? el.center?.lon;
+      if (!elLat || !elLon) continue;
+
+      const dist = haversineKm({ lat, lon }, { lat: elLat, lon: elLon });
+      if (dist === null || dist > 1.0) continue;
+
       const tags = el.tags || {};
-      const rawName = clean([tags.brand, tags.name, tags.operator].filter(Boolean).join(" "));
-      const brand = detectBrand(rawName);
-      const name = brand || clean(tags.brand || tags.name || tags.operator || "");
-      return { lat, lon, name, brand: brand || name };
-    }).filter(x => x.lat && x.lon && x.name);
-  } catch {
-    return [];
-  }
-}
+      const raw = clean([tags.brand, tags.name, tags.operator].filter(Boolean).join(" "));
+      if (!raw) continue;
 
-function nearestOsmName(stationCoords, osmStations) {
-  if (!stationCoords || !osmStations.length) return "";
-  let best = null;
+      const info = detectBrandInfo(raw);
+      const score = info.brand ? 0 : 1;
 
-  for (const osm of osmStations) {
-    const d = haversineKm(stationCoords, { lat: osm.lat, lon: osm.lon });
-    if (d !== null && d <= 0.8 && (!best || d < best.d)) {
-      best = { ...osm, d };
+      if (!best || score < best.score || dist < best.dist) {
+        best = {
+          name: info.brand || raw,
+          score,
+          dist
+        };
+      }
     }
-  }
 
-  return best?.brand || best?.name || "";
+    return best?.name || "";
+  } catch {
+    return "";
+  }
 }
 
 function fallbackName(row) {
   const direct = clean(row.nom_station || row.nom || row.enseigne || row.marque || row.name);
-  if (direct) return detectBrand(direct) || direct;
+  if (!badStationName(direct)) {
+    const info = detectBrandInfo(direct);
+    return info.brand || direct;
+  }
 
   const text = [row.adresse, row.ville, row.services_service, row.horaires_jour].flat().join(" ");
-  const brand = detectBrand(text);
+  const brand = detectBrandInfo(text).brand;
   if (brand) return brand;
 
   if (row.adresse) return `Station-service – ${clean(row.adresse)}`;
@@ -421,8 +425,6 @@ async function apiCarburants(request) {
     searchCenter.radiusKm = Math.min(searchCenter.radiusKm + 25, 65);
   }
 
-  const osmStations = await fetchOsmStations(searchCenter, searchCenter.radiusKm);
-
   async function buildResults(chosenFuel) {
     const seen = new Set();
 
@@ -440,17 +442,16 @@ async function apiCarburants(request) {
 
       if (distFromSearch !== null && distFromSearch > searchCenter.radiusKm) return null;
 
-      const osmName = nearestOsmName(coords, osmStations);
-      const rawName = osmName || fallbackName(row);
-      const stationIdentity = cleanStationNameWithLogo(rawName);
+      const fallback = fallbackName(row);
+      const identity = cleanStationNameWithLogo(fallback, fallback);
 
       return {
         id,
-        name: stationIdentity.name,
-        rawName,
-        logoKey: stationIdentity.logoKey,
-        brandName: stationIdentity.brandName,
-        nameSource: stationIdentity.brandName ? "Enseigne reconnue" : (osmName ? "Nom station" : "Nom déduit"),
+        name: identity.name,
+        rawName: identity.rawName,
+        logoKey: identity.logoKey,
+        brandName: identity.brandName,
+        nameSource: identity.nameSource,
         address: clean(row.adresse),
         cp: clean(row.cp),
         city: clean(row.ville),
@@ -469,21 +470,38 @@ async function apiCarburants(request) {
       return 0;
     }).slice(0, 20);
 
-    // Si OSM ne renvoie pas d'enseigne, on tente la page officielle sur les premiers résultats.
     base = await Promise.all(base.map(async item => {
-      if (item.nameSource === "Enseigne") return item;
-      const official = await getOfficialName(item.id);
-      if (official) {
-        const officialIdentity = cleanStationNameWithLogo(official);
+      // 1) Si on a déjà une enseigne reconnue, on garde.
+      if (item.brandName) return item;
+
+      // 2) Sinon OSM autour de la station précise.
+      const osmName = await fetchOsmNameForStation(item.lat, item.lon);
+      if (osmName && !badStationName(osmName)) {
+        const identity = cleanStationNameWithLogo(osmName, item.name);
         return {
           ...item,
-          name: officialIdentity.name,
-          rawName: official,
-          logoKey: officialIdentity.logoKey,
-          brandName: officialIdentity.brandName,
-          nameSource: officialIdentity.brandName ? "Enseigne reconnue" : "Nom station"
+          name: identity.name,
+          rawName: osmName,
+          logoKey: identity.logoKey,
+          brandName: identity.brandName,
+          nameSource: identity.brandName ? "Enseigne reconnue OSM" : "Nom OSM"
         };
       }
+
+      // 3) Dernier recours : page officielle, mais on ignore placeholder-titre.
+      const official = await getOfficialName(item.id);
+      if (official && !badStationName(official)) {
+        const identity = cleanStationNameWithLogo(official, item.name);
+        return {
+          ...item,
+          name: identity.name,
+          rawName: official,
+          logoKey: identity.logoKey,
+          brandName: identity.brandName,
+          nameSource: identity.brandName ? "Enseigne reconnue" : "Nom station"
+        };
+      }
+
       return item;
     }));
 
@@ -517,9 +535,9 @@ async function apiCarburants(request) {
       radiusKm: searchCenter.radiusKm,
       requestedRadiusKm: requestedRadius,
       rowsFoundBeforeFuelFilter: rows.length,
-      osmStationsFound: osmStations.length,
       priceFieldsUsed: FUEL_FIELDS[fuel].price,
       fallbackFuel,
+      nameFix: "placeholder-titre ignore + OSM par station",
       message
     },
     results
