@@ -3,14 +3,15 @@ const DATA_API = "https://data.economie.gouv.fr/api/explore/v2.1/catalog/dataset
 const GEO_COMMUNES = "https://geo.api.gouv.fr/communes";
 const NOMINATIM_REVERSE = "https://nominatim.openstreetmap.org/reverse";
 const OVERPASS_API = "https://overpass-api.de/api/interpreter";
+const STATION_PAGE = "https://www.prix-carburants.gouv.fr/station/";
 
 const FUEL_FIELDS = {
-  gazole: { price: ["prix_gazole"], update: ["maj_gazole"], label: "Gazole" },
-  sp95: { price: ["prix_sp95"], update: ["maj_sp95"], label: "SP95" },
-  sp98: { price: ["prix_sp98"], update: ["maj_sp98"], label: "SP98" },
-  e10: { price: ["prix_e10"], update: ["maj_e10"], label: "E10" },
-  e85: { price: ["prix_e85"], update: ["maj_e85"], label: "E85" },
-  gplc: { price: ["prix_gplc"], update: ["maj_gplc"], label: "GPLc" }
+  gazole: { price: ["gazole_prix", "prix_gazole"], update: ["gazole_maj", "maj_gazole"], label: "Gazole" },
+  sp95: { price: ["sp95_prix", "prix_sp95"], update: ["sp95_maj", "maj_sp95"], label: "SP95" },
+  sp98: { price: ["sp98_prix", "prix_sp98"], update: ["sp98_maj", "maj_sp98"], label: "SP98" },
+  e10: { price: ["e10_prix", "prix_e10"], update: ["e10_maj", "maj_e10"], label: "E10" },
+  e85: { price: ["e85_prix", "prix_e85"], update: ["e85_maj", "maj_e85"], label: "E85" },
+  gplc: { price: ["gplc_prix", "prix_gplc"], update: ["gplc_maj", "maj_gplc"], label: "GPLc" }
 };
 
 const BRAND_PATTERNS = [
@@ -28,7 +29,8 @@ const BRAND_PATTERNS = [
   { brand: "Dyneff", keys: ["dyneff"] },
   { brand: "Netto", keys: ["netto"] },
   { brand: "Casino", keys: ["casino"] },
-  { brand: "Cora", keys: ["cora"] }
+  { brand: "Cora", keys: ["cora"] },
+  { brand: "Intermarché Contact", keys: ["intermarché contact", "intermarche contact"] }
 ];
 
 const PARIS_CENTER = { lat: 48.8566, lon: 2.3522 };
@@ -37,16 +39,16 @@ const TERGNIER_CENTER = { lat: 49.6566, lon: 3.2870 };
 const clean = (v) => String(v ?? "").replace(/[<>"']/g, "").trim();
 const normalize = (v) => clean(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-function clampRadius(value) {
-  const n = toNumberOrNull(value);
-  if (n === null) return null;
-  return Math.min(Math.max(n, 5), 80);
-}
-
 function toNumberOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
   const n = Number(String(value).replace(",", ".").trim());
   return Number.isFinite(n) ? n : null;
+}
+
+function clampRadius(value) {
+  const n = toNumberOrNull(value);
+  if (n === null) return null;
+  return Math.min(Math.max(n, 5), 80);
 }
 
 function json(data, status = 200) {
@@ -66,6 +68,63 @@ function detectBrand(text) {
     if (rule.keys.some(k => t.includes(normalize(k)))) return rule.brand;
   }
   return "";
+}
+
+function stripHtml(value) {
+  return String(value || "")
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractOfficialName(html) {
+  const patterns = [
+    /<h1[^>]*>([\s\S]*?)<\/h1>/i,
+    /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
+    /<title[^>]*>([\s\S]*?)<\/title>/i
+  ];
+
+  for (const pattern of patterns) {
+    const m = html.match(pattern);
+    if (m && m[1]) {
+      const raw = stripHtml(m[1]);
+      const brand = detectBrand(raw);
+      if (brand) return brand;
+
+      const name = raw
+        .replace(/Prix des carburants/gi, "")
+        .replace(/prix-carburants\.gouv\.fr/gi, "")
+        .replace(/Station-service/gi, "")
+        .replace(/^[-|–]+|[-|–]+$/g, "")
+        .trim();
+
+      if (name.length >= 3 && !normalize(name).includes("prix carburants")) return name;
+    }
+  }
+
+  return "";
+}
+
+async function getOfficialName(id) {
+  if (!id) return "";
+  try {
+    const r = await fetch(`${STATION_PAGE}${encodeURIComponent(id)}`, {
+      headers: {
+        "Accept": "text/html",
+        "User-Agent": "Carburio/1.0 (+https://carburio.com)"
+      }
+    });
+    if (!r.ok) return "";
+    return extractOfficialName(await r.text());
+  } catch {
+    return "";
+  }
 }
 
 function coordToDecimal(value) {
@@ -159,6 +218,7 @@ async function cityCenter(q) {
 
   const r = await fetch(`${GEO_COMMUNES}?${params.toString()}`, { headers: { "Accept": "application/json" } });
   if (!r.ok) return null;
+
   const data = await r.json();
   const c = data?.[0];
 
@@ -287,9 +347,6 @@ async function apiCarburants(request) {
   let searchCenter = null;
   let distanceCenter = null;
 
-  // IMPORTANT :
-  // Si q est présent, on cherche autour de la ville demandée.
-  // La position GPS sert seulement à calculer la distance depuis l'utilisateur.
   if (q) {
     searchCenter = await cityCenter(q);
     distanceCenter = hasRealPosition ? { lat, lon, label: "Votre position" } : searchCenter;
@@ -318,10 +375,10 @@ async function apiCarburants(request) {
 
   const osmStations = await fetchOsmStations(searchCenter, searchCenter.radiusKm);
 
-  function buildResults(chosenFuel) {
+  async function buildResults(chosenFuel) {
     const seen = new Set();
 
-    return rows.map(row => {
+    let base = rows.map(row => {
       const id = clean(row.id || `${row.adresse}-${row.cp}-${row.ville}`);
       if (seen.has(id)) return null;
       seen.add(id);
@@ -358,14 +415,30 @@ async function apiCarburants(request) {
       if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
       return a.price - b.price;
     }).slice(0, 20);
+
+    // Si OSM ne renvoie pas d'enseigne, on tente la page officielle sur les premiers résultats.
+    base = await Promise.all(base.map(async item => {
+      if (item.nameSource === "Enseigne") return item;
+      const official = await getOfficialName(item.id);
+      if (official) {
+        return {
+          ...item,
+          name: official,
+          nameSource: detectBrand(official) ? "Enseigne" : "Nom station"
+        };
+      }
+      return item;
+    }));
+
+    return base;
   }
 
-  let results = buildResults(fuel);
+  let results = await buildResults(fuel);
   let fallbackFuel = "";
 
   if (!results.length) {
     for (const f of ["gazole", "sp95", "sp98", "e10", "e85", "gplc"].filter(x => x !== fuel)) {
-      const alt = buildResults(f);
+      const alt = await buildResults(f);
       if (alt.length) {
         results = alt;
         fallbackFuel = f;
@@ -388,6 +461,7 @@ async function apiCarburants(request) {
       requestedRadiusKm: requestedRadius,
       rowsFoundBeforeFuelFilter: rows.length,
       osmStationsFound: osmStations.length,
+      priceFieldsUsed: FUEL_FIELDS[fuel].price,
       fallbackFuel,
       message
     },
