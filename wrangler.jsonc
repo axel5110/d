@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "carburio",
+  "name": "d",
   "compatibility_date": "2026-06-16",
   "assets": {
     "directory": "."
