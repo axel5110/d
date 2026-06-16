@@ -3,6 +3,8 @@
   const form = document.getElementById("compareForm");
   const placeInput = document.getElementById("placeInput");
   const fuelSelect = document.getElementById("fuelSelect");
+  const radiusInput = document.getElementById("radiusInput");
+  const radiusValue = document.getElementById("radiusValue");
   const status = document.getElementById("compareStatus");
   const results = document.getElementById("compareResults");
   const geoButton = document.getElementById("geoButton");
@@ -23,6 +25,20 @@
   };
 
   const clean = (v) => String(v ?? "").replace(/[<>"']/g, "").trim();
+
+  function currentRadiusKm() {
+    const n = Number(radiusInput?.value || 30);
+    return Number.isFinite(n) ? n : 30;
+  }
+
+  function updateRadiusLabel() {
+    if (radiusValue) radiusValue.textContent = currentRadiusKm() + " km";
+  }
+
+  if (radiusInput) {
+    radiusInput.addEventListener("input", updateRadiusLabel);
+    updateRadiusLabel();
+  }
 
   function formatPrice(value) {
     const n = Number(String(value ?? "").replace(",", "."));
@@ -135,7 +151,7 @@
       return;
     }
 
-    const params = new URLSearchParams({ fuel });
+    const params = new URLSearchParams({ fuel, radius: String(currentRadiusKm()) });
     if (q) params.set("q", q);
     if (userPosition) {
       params.set("lat", String(userPosition.lat));
@@ -144,7 +160,7 @@
 
     results.innerHTML = "";
     debugBox.textContent = "";
-    status.textContent = "Recherche des prix, noms, distances et carte…";
+    status.textContent = `Recherche des prix dans un rayon de ${currentRadiusKm()} km…`;
 
     try {
       const response = await fetch(`/api/carburants?${params.toString()}`, { headers: { "Accept": "application/json" } });

@@ -36,7 +36,18 @@ const TERGNIER_CENTER = { lat: 49.6566, lon: 3.2870 };
 
 const clean = (v) => String(v ?? "").replace(/[<>"']/g, "").trim();
 const normalize = (v) => clean(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-const num = (v) => Number(String(v ?? "").replace(",", ".").trim());
+
+function clampRadius(value) {
+  const n = toNumberOrNull(value);
+  if (n === null) return null;
+  return Math.min(Math.max(n, 5), 80);
+}
+
+function toNumberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(String(value).replace(",", ".").trim());
+  return Number.isFinite(n) ? n : null;
+}
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -58,8 +69,8 @@ function detectBrand(text) {
 }
 
 function coordToDecimal(value) {
-  const n = num(value);
-  if (!Number.isFinite(n)) return null;
+  const n = toNumberOrNull(value);
+  if (n === null) return null;
   return Math.abs(n) > 1000 ? n / 100000 : n;
 }
 
@@ -94,8 +105,8 @@ function getFirst(row, fields) {
 
 function getPrice(row, fuel) {
   const value = getFirst(row, FUEL_FIELDS[fuel].price);
-  const n = num(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
+  const n = toNumberOrNull(value);
+  return n !== null && n > 0 ? n : null;
 }
 
 function getUpdate(row, fuel) {
@@ -128,12 +139,13 @@ async function cityCenter(q) {
       format: "json",
       limit: "1"
     });
+
     const r = await fetch(`${GEO_COMMUNES}?${params.toString()}`, { headers: { "Accept": "application/json" } });
     if (r.ok) {
       const data = await r.json();
       const c = data?.[0];
       if (c?.centre?.coordinates?.length === 2) {
-        return { lon: c.centre.coordinates[0], lat: c.centre.coordinates[1], label: c.nom || query, radiusKm: 35 };
+        return { lon: c.centre.coordinates[0], lat: c.centre.coordinates[1], label: c.nom || query, radiusKm: 40 };
       }
     }
   }
@@ -151,7 +163,7 @@ async function cityCenter(q) {
   const c = data?.[0];
 
   if (c?.centre?.coordinates?.length === 2) {
-    return { lon: c.centre.coordinates[0], lat: c.centre.coordinates[1], label: c.nom || query, radiusKm: 35 };
+    return { lon: c.centre.coordinates[0], lat: c.centre.coordinates[1], label: c.nom || query, radiusKm: 40 };
   }
 
   return null;
@@ -213,7 +225,6 @@ async function fetchOsmStations(center, radiusKm) {
     });
 
     if (!r.ok) return [];
-
     const data = await r.json();
 
     return (data.elements || []).map(el => {
@@ -223,12 +234,7 @@ async function fetchOsmStations(center, radiusKm) {
       const rawName = clean([tags.brand, tags.name, tags.operator].filter(Boolean).join(" "));
       const brand = detectBrand(rawName);
       const name = brand || clean(tags.brand || tags.name || tags.operator || "");
-      return {
-        lat,
-        lon,
-        name,
-        brand: brand || name
-      };
+      return { lat, lon, name, brand: brand || name };
     }).filter(x => x.lat && x.lon && x.name);
   } catch {
     return [];
@@ -241,7 +247,7 @@ function nearestOsmName(stationCoords, osmStations) {
 
   for (const osm of osmStations) {
     const d = haversineKm(stationCoords, { lat: osm.lat, lon: osm.lon });
-    if (d !== null && d <= 0.6 && (!best || d < best.d)) {
+    if (d !== null && d <= 0.8 && (!best || d < best.d)) {
       best = { ...osm, d };
     }
   }
@@ -266,36 +272,51 @@ async function apiCarburants(request) {
   const url = new URL(request.url);
   let q = clean(url.searchParams.get("q"));
   const fuel = normalize(url.searchParams.get("fuel") || "e10").replace("prix_", "");
-  const lat = num(url.searchParams.get("lat"));
-  const lon = num(url.searchParams.get("lon"));
+  const requestedRadius = clampRadius(url.searchParams.get("radius"));
+
+  const latParam = url.searchParams.get("lat");
+  const lonParam = url.searchParams.get("lon");
+  const lat = toNumberOrNull(latParam);
+  const lon = toNumberOrNull(lonParam);
+  const hasRealPosition = lat !== null && lon !== null && !(lat === 0 && lon === 0);
 
   if (!FUEL_FIELDS[fuel]) {
     return json({ error: "Carburant non reconnu", results: [] }, 400);
   }
 
-  let center = null;
+  let searchCenter = null;
+  let distanceCenter = null;
 
-  if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    center = { lat, lon, label: "Votre position", radiusKm: 35 };
-    if (!q) q = await postcodeFromPosition(lat, lon);
+  // IMPORTANT :
+  // Si q est présent, on cherche autour de la ville demandée.
+  // La position GPS sert seulement à calculer la distance depuis l'utilisateur.
+  if (q) {
+    searchCenter = await cityCenter(q);
+    distanceCenter = hasRealPosition ? { lat, lon, label: "Votre position" } : searchCenter;
+  } else if (hasRealPosition) {
+    q = await postcodeFromPosition(lat, lon);
+    searchCenter = { lat, lon, label: "Votre position", radiusKm: 40 };
+    distanceCenter = searchCenter;
   } else {
-    if (!q) return json({ error: "Ville, code postal ou position manquante", results: [] }, 400);
-    center = await cityCenter(q);
+    return json({ error: "Ville, code postal ou vraie position manquante", results: [] }, 400);
   }
 
-  if (!center) {
+  if (!searchCenter) {
     return json({ error: "Ville introuvable", detail: "Essaie avec un code postal ou une ville plus précise.", results: [] }, 404);
   }
 
-  let rows = await fetchFuelRowsAround(center, center.radiusKm);
-
-  // Si la ville est petite et qu'il y a peu de stations, on élargit un peu.
-  if (rows.length < 3) {
-    rows = await fetchFuelRowsAround(center, Math.min(center.radiusKm + 25, 60));
-    center.radiusKm = Math.min(center.radiusKm + 25, 60);
+  if (requestedRadius !== null) {
+    searchCenter.radiusKm = requestedRadius;
   }
 
-  const osmStations = await fetchOsmStations(center, center.radiusKm);
+  let rows = await fetchFuelRowsAround(searchCenter, searchCenter.radiusKm);
+
+  if (rows.length < 3 && requestedRadius === null) {
+    rows = await fetchFuelRowsAround(searchCenter, Math.min(searchCenter.radiusKm + 25, 65));
+    searchCenter.radiusKm = Math.min(searchCenter.radiusKm + 25, 65);
+  }
+
+  const osmStations = await fetchOsmStations(searchCenter, searchCenter.radiusKm);
 
   function buildResults(chosenFuel) {
     const seen = new Set();
@@ -309,8 +330,10 @@ async function apiCarburants(request) {
       if (!price) return null;
 
       const coords = getCoords(row);
-      const distanceKm = haversineKm(center, coords);
-      if (distanceKm !== null && distanceKm > center.radiusKm) return null;
+      const distanceKm = haversineKm(distanceCenter, coords);
+      const distFromSearch = haversineKm(searchCenter, coords);
+
+      if (distFromSearch !== null && distFromSearch > searchCenter.radiusKm) return null;
 
       const osmName = nearestOsmName(coords, osmStations);
       const name = osmName || fallbackName(row);
@@ -353,14 +376,16 @@ async function apiCarburants(request) {
 
   const message = fallbackFuel
     ? `Aucun prix ${FUEL_FIELDS[fuel].label} trouvé. Affichage des stations proches avec ${FUEL_FIELDS[fallbackFuel].label}.`
-    : `${results.length} station(s) trouvée(s) autour de ${center.label}.`;
+    : `${results.length} station(s) trouvée(s) autour de ${searchCenter.label}.`;
 
   return json({
     meta: {
       q,
       fuel,
-      center: { lat: center.lat, lon: center.lon, label: center.label },
-      radiusKm: center.radiusKm,
+      searchCenter: { lat: searchCenter.lat, lon: searchCenter.lon, label: searchCenter.label },
+      distanceCenter: distanceCenter ? { lat: distanceCenter.lat, lon: distanceCenter.lon, label: distanceCenter.label } : null,
+      radiusKm: searchCenter.radiusKm,
+      requestedRadiusKm: requestedRadius,
       rowsFoundBeforeFuelFilter: rows.length,
       osmStationsFound: osmStations.length,
       fallbackFuel,

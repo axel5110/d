@@ -88,11 +88,16 @@
               <option value="gplc">GPLc</option>
             </select>
           </label>
+
+          <label class="range-label">
+            Distance : <span id="radiusValue">30 km</span>
+            <input id="radiusInput" class="distance-slider" type="range" min="5" max="80" step="5" value="30">
+          </label>
           <button class="btn btn-primary compare-submit" type="submit">Afficher les prix</button>
           <button class="btn btn-secondary compare-location" id="geoButton" type="button">📍 Utiliser ma position</button>
         </form>
 
-        <div id="compareStatus" class="compare-status">Essaie avec Paris, Lyon, Marseille, Amiens, Lille, Tergnier ou n’importe quelle ville de France.</div>
+        <div id="compareStatus" class="compare-status">Essaie avec Paris, Lyon, Marseille, Amiens, Lille, Tergnier ou n’importe quelle ville de France. Règle aussi la distance avec le curseur.</div>
         <div id="debugBox" class="api-debug"></div>
 
         <div id="carte" class="map-wrap">
