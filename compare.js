@@ -56,6 +56,25 @@
     return "autre";
   }
 
+
+  function brandLabelFromLogoKey(key) {
+    const labels = {
+      totalenergies: "TotalEnergies",
+      leclerc: "E.Leclerc",
+      intermarche: "Intermarché",
+      carrefour: "Carrefour",
+      carrefourmarket: "Carrefour Market",
+      auchan: "Auchan",
+      superu: "Super U",
+      avia: "Avia",
+      esso: "Esso",
+      shell: "Shell",
+      bp: "BP",
+      autre: ""
+    };
+    return labels[key] || "";
+  }
+
   function stationLogoHtml(item, name) {
     const key = item.logoKey || logoKeyFromName(name);
     const src = stationLogoMap[key] || stationLogoMap.autre;
@@ -182,6 +201,7 @@
           <div>
             <strong>${index + 1}. ${name} ${sourceBadge}</strong>
             <div class="address">${address}${address && (cp || city) ? " · " : ""}${cp} ${city}</div>
+            ${item.rawName && item.rawName !== name ? `<div class="small">Nom détecté : ${clean(item.rawName)}</div>` : ""}
             <div class="small">${info}</div>
             ${mapQuery ? `<a class="map-link" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query=${mapQuery}">Itinéraire</a>` : ""}
           </div>

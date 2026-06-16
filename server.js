@@ -74,8 +74,8 @@ function detectBrand(text) {
 function logoKeyFromName(name) {
   const t = normalize(name);
   if (t.includes("total")) return "totalenergies";
-  if (t.includes("leclerc")) return "leclerc";
-  if (t.includes("intermarche")) return "intermarche";
+  if (t.includes("e.leclerc") || t.includes("e leclerc") || t.includes("leclerc")) return "leclerc";
+  if (t.includes("intermarche") || t.includes("intermarché")) return "intermarche";
   if (t.includes("carrefour market")) return "carrefourmarket";
   if (t.includes("carrefour")) return "carrefour";
   if (t.includes("auchan")) return "auchan";
@@ -85,6 +85,37 @@ function logoKeyFromName(name) {
   if (t.includes("shell")) return "shell";
   if (t.includes("bp")) return "bp";
   return "autre";
+}
+
+
+function brandLabelFromLogoKey(key) {
+  const labels = {
+    totalenergies: "TotalEnergies",
+    leclerc: "E.Leclerc",
+    intermarche: "Intermarché",
+    carrefour: "Carrefour",
+    carrefourmarket: "Carrefour Market",
+    auchan: "Auchan",
+    superu: "Super U",
+    avia: "Avia",
+    esso: "Esso",
+    shell: "Shell",
+    bp: "BP",
+    autre: ""
+  };
+  return labels[key] || "";
+}
+
+function cleanStationNameWithLogo(name) {
+  const key = logoKeyFromName(name);
+  const label = brandLabelFromLogoKey(key);
+  if (label) return { name: label, logoKey: key, brandName: label };
+
+  return {
+    name: name || "Station-service",
+    logoKey: key || "autre",
+    brandName: ""
+  };
 }
 
 function stripHtml(value) {
@@ -410,13 +441,16 @@ async function apiCarburants(request) {
       if (distFromSearch !== null && distFromSearch > searchCenter.radiusKm) return null;
 
       const osmName = nearestOsmName(coords, osmStations);
-      const name = osmName || fallbackName(row);
+      const rawName = osmName || fallbackName(row);
+      const stationIdentity = cleanStationNameWithLogo(rawName);
 
       return {
         id,
-        name,
-        logoKey: logoKeyFromName(name),
-        nameSource: osmName ? "Enseigne" : "Nom déduit",
+        name: stationIdentity.name,
+        rawName,
+        logoKey: stationIdentity.logoKey,
+        brandName: stationIdentity.brandName,
+        nameSource: stationIdentity.brandName ? "Enseigne reconnue" : (osmName ? "Nom station" : "Nom déduit"),
         address: clean(row.adresse),
         cp: clean(row.cp),
         city: clean(row.ville),
@@ -440,11 +474,14 @@ async function apiCarburants(request) {
       if (item.nameSource === "Enseigne") return item;
       const official = await getOfficialName(item.id);
       if (official) {
+        const officialIdentity = cleanStationNameWithLogo(official);
         return {
           ...item,
-          name: official,
-          logoKey: logoKeyFromName(official),
-          nameSource: detectBrand(official) ? "Enseigne" : "Nom station"
+          name: officialIdentity.name,
+          rawName: official,
+          logoKey: officialIdentity.logoKey,
+          brandName: officialIdentity.brandName,
+          nameSource: officialIdentity.brandName ? "Enseigne reconnue" : "Nom station"
         };
       }
       return item;

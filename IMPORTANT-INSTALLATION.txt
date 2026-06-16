@@ -1,31 +1,21 @@
-CARBURIO V9 - LOGOS STATIONS + PRIX CROISSANT
+CARBURIO V10 - NOMS + LOGOS + PLAY STORE
 
 Ajouts :
-- logos des stations à côté des résultats
-- logos récupérés depuis l'application Carburio
+- nom de station associé au bon logo quand l'enseigne est reconnue
+- exemple : TotalEnergies -> logo TotalEnergies
+- exemple : E.Leclerc -> logo E.Leclerc
+- exemple : Intermarché -> logo Intermarché
 - tri toujours du prix le moins cher vers le prix le plus haut
-- distance conservée
-- carte conservée
-- curseur distance conservé
+- bouton "Télécharger dans le Play Store" dans le site
+- carte, distance et curseur conservés
 
-Logos inclus :
-- TotalEnergies
-- E.Leclerc
-- Intermarché
-- Carrefour
-- Carrefour Market
-- Auchan
-- Super U / U
-- Avia
-- Esso
-- Shell
-- BP
-- Autre
+Fichiers à mettre dans GitHub :
+- tous les fichiers de ce ZIP
+- ne garde pas les anciens fichiers
 
-Tests :
-/api/carburants?q=Paris&fuel=e10&radius=30
-/api/carburants?q=Lyon&fuel=sp95&radius=30
-/api/carburants?q=02700&fuel=e10&radius=50
-
-Avant d'envoyer cette version dans GitHub, supprime l'ancien contenu.
-Ne garde pas node_modules, _worker.js, functions, anciens ZIP ou anciens dossiers.
+À supprimer avant upload :
+- node_modules
+- _worker.js
+- functions
+- anciens ZIP
+- anciens dossiers

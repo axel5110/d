@@ -69,3 +69,48 @@ h1{font-size:clamp(48px,7vw,84px);line-height:.96;letter-spacing:-.075em;margin:
   object-fit:contain;
   display:block;
 }
+
+
+/* Bouton Play Store */
+.btn-playstore{
+  background:#07131f;
+  color:#fff;
+  border-color:#07131f;
+  box-shadow:0 18px 36px rgba(7,19,31,.22);
+}
+.btn-playstore:hover{
+  transform:translateY(-1px);
+}
+.download-app-box{
+  margin-top:20px;
+  background:linear-gradient(135deg,#07131f,#0f3d2e);
+  color:#fff;
+  border-radius:22px;
+  padding:18px;
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:center;
+}
+.download-app-box strong{
+  display:block;
+  font-size:18px;
+}
+.download-app-box span{
+  display:block;
+  color:rgba(255,255,255,.78);
+  margin-top:4px;
+}
+.download-app-box .btn-playstore{
+  background:#16A34A;
+  border-color:#16A34A;
+  white-space:nowrap;
+}
+@media(max-width:650px){
+  .download-app-box{
+    display:block;
+  }
+  .download-app-box .btn-playstore{
+    margin-top:14px;
+  }
+}
