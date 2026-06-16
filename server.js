@@ -70,6 +70,23 @@ function detectBrand(text) {
   return "";
 }
 
+
+function logoKeyFromName(name) {
+  const t = normalize(name);
+  if (t.includes("total")) return "totalenergies";
+  if (t.includes("leclerc")) return "leclerc";
+  if (t.includes("intermarche")) return "intermarche";
+  if (t.includes("carrefour market")) return "carrefourmarket";
+  if (t.includes("carrefour")) return "carrefour";
+  if (t.includes("auchan")) return "auchan";
+  if (t.includes("super u") || t.includes("hyper u") || t.includes("u express") || t.includes("systeme u") || t.includes("système u")) return "superu";
+  if (t.includes("avia")) return "avia";
+  if (t.includes("esso")) return "esso";
+  if (t.includes("shell")) return "shell";
+  if (t.includes("bp")) return "bp";
+  return "autre";
+}
+
 function stripHtml(value) {
   return String(value || "")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -398,6 +415,7 @@ async function apiCarburants(request) {
       return {
         id,
         name,
+        logoKey: logoKeyFromName(name),
         nameSource: osmName ? "Enseigne" : "Nom déduit",
         address: clean(row.adresse),
         cp: clean(row.cp),
@@ -412,8 +430,9 @@ async function apiCarburants(request) {
         distanceText: formatDistance(distanceKm)
       };
     }).filter(Boolean).sort((a, b) => {
+      if (a.price !== b.price) return a.price - b.price;
       if (a.distanceKm !== null && b.distanceKm !== null) return a.distanceKm - b.distanceKm;
-      return a.price - b.price;
+      return 0;
     }).slice(0, 20);
 
     // Si OSM ne renvoie pas d'enseigne, on tente la page officielle sur les premiers résultats.
@@ -424,6 +443,7 @@ async function apiCarburants(request) {
         return {
           ...item,
           name: official,
+          logoKey: logoKeyFromName(official),
           nameSource: detectBrand(official) ? "Enseigne" : "Nom station"
         };
       }

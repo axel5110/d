@@ -15,6 +15,56 @@
   let map;
   let markersLayer;
 
+  const stationLogoMap = {
+    "auchan": "station-auchan.png",
+    "avia": "station-avia.png",
+    "bp": "station-bp.png",
+    "carrefour": "station-carrefour.png",
+    "carrefourmarket": "station-carrefourmarket.png",
+    "esso": "station-esso.png",
+    "intermarche": "station-intermarche.png",
+    "leclerc": "station-leclerc.png",
+    "shell": "station-shell.png",
+    "totalenergies": "station-totalenergies.png",
+    "superu": "station-superu.png",
+    "autre": "station-autre.png"
+};
+
+  const brandAliases = {
+    totalenergies: ["total", "totalenergies", "total energies", "total access"],
+    leclerc: ["leclerc", "e.leclerc", "e leclerc"],
+    intermarche: ["intermarche", "intermarché"],
+    carrefourmarket: ["carrefour market"],
+    carrefour: ["carrefour"],
+    auchan: ["auchan"],
+    superu: ["super u", "hyper u", "u express", "système u", "systeme u"],
+    avia: ["avia"],
+    esso: ["esso"],
+    shell: ["shell"],
+    bp: ["bp"]
+  };
+
+  function normalizeText(value) {
+    return clean(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  }
+
+  function logoKeyFromName(name) {
+    const t = normalizeText(name);
+    for (const [key, aliases] of Object.entries(brandAliases)) {
+      if (aliases.some(alias => t.includes(normalizeText(alias)))) return key;
+    }
+    return "autre";
+  }
+
+  function stationLogoHtml(item, name) {
+    const key = item.logoKey || logoKeyFromName(name);
+    const src = stationLogoMap[key] || stationLogoMap.autre;
+    if (src) {
+      return `<div class="station-logo-img-wrap"><img class="station-logo-img" src="${src}" alt="${name}"></div>`;
+    }
+    return logoInitial(name);
+  }
+
   const fuelLabels = {
     gazole: "Gazole",
     sp95: "SP95",
@@ -128,7 +178,7 @@
       card.className = "result-card";
       card.innerHTML = `
         <div class="result-main">
-          ${logoInitial(name)}
+          ${stationLogoHtml(item, name)}
           <div>
             <strong>${index + 1}. ${name} ${sourceBadge}</strong>
             <div class="address">${address}${address && (cp || city) ? " · " : ""}${cp} ${city}</div>
@@ -160,7 +210,7 @@
 
     results.innerHTML = "";
     debugBox.textContent = "";
-    status.textContent = `Recherche des prix dans un rayon de ${currentRadiusKm()} km…`;
+    status.textContent = `Recherche des prix dans un rayon de ${currentRadiusKm()} km, du moins cher au plus cher…`;
 
     try {
       const response = await fetch(`/api/carburants?${params.toString()}`, { headers: { "Accept": "application/json" } });

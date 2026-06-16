@@ -1,25 +1,31 @@
-CARBURIO - VERSION V8 CORRIGEE
+CARBURIO V9 - LOGOS STATIONS + PRIX CROISSANT
 
-Correction importante :
-- l'API officielle utilise e10_prix, sp95_prix, gazole_prix...
-- l'ancien code cherchait surtout prix_e10, prix_sp95...
-- maintenant les deux formats sont acceptés.
+Ajouts :
+- logos des stations à côté des résultats
+- logos récupérés depuis l'application Carburio
+- tri toujours du prix le moins cher vers le prix le plus haut
+- distance conservée
+- carte conservée
+- curseur distance conservé
 
-Fonctions :
-- prix carburants
-- noms / enseignes des stations quand disponibles
-- distance
-- carte
-- curseur distance de 5 km à 80 km
-- logo Carburio
+Logos inclus :
+- TotalEnergies
+- E.Leclerc
+- Intermarché
+- Carrefour
+- Carrefour Market
+- Auchan
+- Super U / U
+- Avia
+- Esso
+- Shell
+- BP
+- Autre
 
-Tests API :
+Tests :
 /api/carburants?q=Paris&fuel=e10&radius=30
 /api/carburants?q=Lyon&fuel=sp95&radius=30
-/api/carburants?q=Marseille&fuel=sp95&radius=30
 /api/carburants?q=02700&fuel=e10&radius=50
 
-Dans la réponse JSON, vérifie :
-priceFieldsUsed
-rowsFoundBeforeFuelFilter
-results
+Avant d'envoyer cette version dans GitHub, supprime l'ancien contenu.
+Ne garde pas node_modules, _worker.js, functions, anciens ZIP ou anciens dossiers.
